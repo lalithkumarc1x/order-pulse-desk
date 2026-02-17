@@ -9,6 +9,7 @@ interface KmsState {
   isOnline: boolean;
   isPaused: boolean;
   selectedTicket: string | null;
+  currentView: 'station' | 'prep';
 
   markOrderDone: (orderId: string) => void;
   markItemDone: (orderId: string, itemIndex: number) => void;
@@ -23,6 +24,9 @@ interface KmsState {
   setSelectedTicket: (id: string | null) => void;
   simulateUpdates: () => void;
   deductIngredients: (order: Order) => void;
+  setCurrentView: (view: 'station' | 'prep') => void;
+  addSimulatedOrder: () => Order;
+  recallOrder: (orderId: string) => void;
 }
 
 export const useKmsStore = create<KmsState>((set, get) => ({
@@ -32,6 +36,7 @@ export const useKmsStore = create<KmsState>((set, get) => ({
   isOnline: navigator.onLine,
   isPaused: false,
   selectedTicket: null,
+  currentView: 'station',
 
   markOrderDone: (orderId) => {
     const state = get();
@@ -135,6 +140,52 @@ export const useKmsStore = create<KmsState>((set, get) => ({
       });
       return { orders: updated };
     });
+  },
+
+  setCurrentView: (view) => set({ currentView: view }),
+
+  addSimulatedOrder: () => {
+    const state = get();
+    const orderNum = state.orders.length + 1;
+    const priorities: Order['priority'][] = ['normal', 'normal', 'rush', 'vip'];
+    const types: Order['type'][] = ['dine-in', 'takeout', 'delivery'];
+    const stations = ['Grill', 'Fry', 'Salad', 'Expo', 'Dessert'];
+    
+    const numItems = Math.floor(Math.random() * 3) + 1;
+    const items = Array.from({ length: numItems }, () => ({
+      menuItemId: menuItems[Math.floor(Math.random() * menuItems.length)].id,
+      quantity: Math.floor(Math.random() * 2) + 1,
+      notes: Math.random() > 0.8 ? ['No onion', 'Extra sauce', 'Well done'][Math.floor(Math.random() * 3)] : undefined,
+    }));
+
+    const stationForOrder = items.length > 0
+      ? menuItems.find(m => m.id === items[0].menuItemId)?.category || 'Expo'
+      : 'Expo';
+
+    const newOrder: Order = {
+      id: `ORD-${String(orderNum).padStart(3, '0')}`,
+      items,
+      station: stations.includes(stationForOrder) ? stationForOrder : 'Expo',
+      status: 'pending',
+      priority: priorities[Math.floor(Math.random() * priorities.length)],
+      createdAt: Date.now(),
+      slaMinutes: [10, 12, 15, 20][Math.floor(Math.random() * 4)],
+      tableNumber: Math.random() > 0.3 ? Math.floor(Math.random() * 20) + 1 : undefined,
+      type: types[Math.floor(Math.random() * types.length)],
+    };
+
+    set(s => ({ orders: [...s.orders, newOrder] }));
+    return newOrder;
+  },
+
+  recallOrder: (orderId) => {
+    set(s => ({
+      orders: s.orders.map(o =>
+        o.id === orderId
+          ? { ...o, status: 'pending', items: o.items.map(i => ({ ...i, done: false })) }
+          : o
+      ),
+    }));
   },
 }));
 

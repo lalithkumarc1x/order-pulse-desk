@@ -1,13 +1,17 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useKmsStore } from '@/store/useKmsStore';
 import StationColumn from '@/components/kds/StationColumn';
+import PrepBoardView from '@/components/kds/PrepBoardView';
+import OrderHistoryModal from '@/components/kds/OrderHistoryModal';
 import { STATIONS } from '@/types';
-import { Pause, Play, ArrowLeft, Wifi, WifiOff } from 'lucide-react';
+import { Pause, Play, ArrowLeft, Wifi, WifiOff, LayoutGrid, Columns, Plus, History, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import type { Order } from '@/types';
 
 export default function KdsPage() {
-  const { orders, selectedTicket, isPaused, isOnline, markOrderDone, setSelectedTicket, rebalanceStation, setPaused, setOnline, simulateUpdates } = useKmsStore();
+  const { orders, selectedTicket, isPaused, isOnline, currentView, markOrderDone, setSelectedTicket, rebalanceStation, setPaused, setOnline, simulateUpdates, setCurrentView, addSimulatedOrder, recallOrder } = useKmsStore();
   const chimeRef = useRef<AudioContext | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
 
   const playChime = useCallback(() => {
     try {
@@ -25,6 +29,72 @@ export default function KdsPage() {
       osc.stop(ctx.currentTime + 0.3);
     } catch {}
   }, []);
+
+  const playOrderSound = useCallback((priority: Order['priority']) => {
+    try {
+      if (!chimeRef.current) chimeRef.current = new AudioContext();
+      const ctx = chimeRef.current;
+      
+      if (priority === 'vip') {
+        // VIP: Distinctive three-tone alert
+        [800, 1000, 1200].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = freq;
+          osc.type = 'square';
+          const startTime = ctx.currentTime + i * 0.15;
+          gain.gain.setValueAtTime(0.4, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.15);
+          osc.start(startTime);
+          osc.stop(startTime + 0.15);
+        });
+      } else if (priority === 'rush') {
+        // Rush: Urgent rapid beeps
+        [0, 0.12, 0.24].forEach((delay) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.value = 1200;
+          osc.type = 'sawtooth';
+          const startTime = ctx.currentTime + delay;
+          gain.gain.setValueAtTime(0.35, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.1);
+          osc.start(startTime);
+          osc.stop(startTime + 0.1);
+        });
+      } else {
+        // Normal: Gentle chime
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 660;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.4);
+      }
+    } catch {}
+  }, []);
+
+  const handleSimulateOrder = useCallback(() => {
+    const newOrder = addSimulatedOrder();
+    playOrderSound(newOrder.priority);
+  }, [addSimulatedOrder, playOrderSound]);
+
+  const handleRecallLast = useCallback(() => {
+    const completedOrders = orders
+      .filter(o => o.status === 'done')
+      .sort((a, b) => b.createdAt - a.createdAt);
+    
+    if (completedOrders.length > 0) {
+      recallOrder(completedOrders[0].id);
+    }
+  }, [orders, recallOrder]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -85,11 +155,60 @@ export default function KdsPage() {
             {isOnline ? <Wifi size={12} className="text-primary" /> : <WifiOff size={12} className="text-destructive" />}
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <p className="text-xs text-muted-foreground hidden sm:block">
+        <div className="flex items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 bg-muted rounded p-1">
+            <button
+              onClick={() => setCurrentView('station')}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                currentView === 'station' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Columns size={12} />
+              Station
+            </button>
+            <button
+              onClick={() => setCurrentView('prep')}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                currentView === 'prep' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <LayoutGrid size={12} />
+              Prep Board
+            </button>
+          </div>
+
+          {/* Simulate Order Button */}
+          <button
+            onClick={handleSimulateOrder}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-accent text-accent-foreground hover:bg-accent/80 transition-colors"
+          >
+            <Plus size={14} />
+            Simulate Order
+          </button>
+
+          {/* History Button */}
+          <button
+            onClick={() => setShowHistory(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+          >
+            <History size={14} />
+            History
+          </button>
+
+          {/* Recall Last Button */}
+          <button
+            onClick={handleRecallLast}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+            title="Recall last completed order"
+          >
+            <RotateCcw size={14} />
+            Recall
+          </button>
+
+          <p className="text-xs text-muted-foreground hidden lg:block">
             <kbd className="px-1 py-0.5 bg-muted rounded text-xs">Space</kbd> pause · 
-            <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">Enter</kbd> done · 
-            <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">1-5</kbd> station
+            <kbd className="px-1 py-0.5 bg-muted rounded text-xs ml-1">Enter</kbd> done
           </p>
           <button
             onClick={() => setPaused(!isPaused)}
@@ -102,19 +221,33 @@ export default function KdsPage() {
           </button>
         </div>
       </div>
-      <div className="flex-1 flex gap-2 overflow-x-auto p-2">
-        {STATIONS.map(station => (
-          <StationColumn
-            key={station}
-            station={station}
-            orders={orders.filter(o => o.station === station)}
+      <div className="flex-1 overflow-hidden">
+        {currentView === 'station' ? (
+          <div className="flex gap-2 overflow-x-auto p-2 h-full">
+            {STATIONS.map(station => (
+              <StationColumn
+                key={station}
+                station={station}
+                orders={orders.filter(o => o.station === station)}
+                selectedTicket={selectedTicket}
+                onSelectTicket={setSelectedTicket}
+                onMarkDone={(id) => { markOrderDone(id); playChime(); }}
+                onRebalance={() => rebalanceStation(station)}
+              />
+            ))}
+          </div>
+        ) : (
+          <PrepBoardView 
+            orders={orders}
             selectedTicket={selectedTicket}
             onSelectTicket={setSelectedTicket}
             onMarkDone={(id) => { markOrderDone(id); playChime(); }}
-            onRebalance={() => rebalanceStation(station)}
           />
-        ))}
+        )}
       </div>
+
+      {/* Order History Modal */}
+      <OrderHistoryModal isOpen={showHistory} onClose={() => setShowHistory(false)} />
     </div>
   );
 }
