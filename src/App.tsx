@@ -20,9 +20,10 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* KDS is full-screen, no sidebar */}
+          <Route path="/" element={<Navigate to="/kds" replace />} />
+          <Route path="/kds" element={<KdsPage />} />
           <Route element={<AppLayout />}>
-            <Route path="/" element={<Navigate to="/kds" replace />} />
-            <Route path="/kds" element={<KdsPage />} />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />

@@ -11,6 +11,7 @@ interface KmsState {
   selectedTicket: string | null;
 
   markOrderDone: (orderId: string) => void;
+  markItemDone: (orderId: string, itemIndex: number) => void;
   expediteOrder: (orderId: string) => void;
   updateOrderPriority: (orderId: string, priority: Order['priority']) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
@@ -37,8 +38,25 @@ export const useKmsStore = create<KmsState>((set, get) => ({
     const order = state.orders.find(o => o.id === orderId);
     if (order && order.status !== 'done') {
       state.deductIngredients(order);
-      set(s => ({ orders: s.orders.map(o => o.id === orderId ? { ...o, status: 'done' } : o) }));
+      set(s => ({ orders: s.orders.map(o => o.id === orderId ? { ...o, status: 'done', items: o.items.map(i => ({ ...i, done: true })) } : o) }));
     }
+  },
+
+  markItemDone: (orderId, itemIndex) => {
+    set(s => {
+      const newOrders = s.orders.map(o => {
+        if (o.id !== orderId) return o;
+        const newItems = o.items.map((item, idx) => idx === itemIndex ? { ...item, done: true } : item);
+        const allDone = newItems.every(i => i.done);
+        if (allDone) {
+          const order = { ...o, items: newItems, status: 'done' as const };
+          get().deductIngredients(order);
+          return order;
+        }
+        return { ...o, items: newItems, status: 'in-progress' as const };
+      });
+      return { orders: newOrders };
+    });
   },
 
   expediteOrder: (orderId) =>
