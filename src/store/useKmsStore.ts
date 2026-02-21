@@ -10,9 +10,13 @@ interface KmsState {
   isPaused: boolean;
   selectedTicket: string | null;
   currentView: 'station' | 'prep';
+  expandedStation: string | null;
+  pinnedStations: string[];
 
   markOrderDone: (orderId: string) => void;
   markItemDone: (orderId: string, itemIndex: number) => void;
+  startItem: (orderId: string, itemIndex: number) => void;
+  voidOrder: (orderId: string, reason: string) => void;
   expediteOrder: (orderId: string) => void;
   updateOrderPriority: (orderId: string, priority: Order['priority']) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
@@ -27,6 +31,8 @@ interface KmsState {
   setCurrentView: (view: 'station' | 'prep') => void;
   addSimulatedOrder: () => Order;
   recallOrder: (orderId: string) => void;
+  setExpandedStation: (station: string | null) => void;
+  togglePinnedStation: (station: string) => void;
 }
 
 export const useKmsStore = create<KmsState>((set, get) => ({
@@ -37,6 +43,8 @@ export const useKmsStore = create<KmsState>((set, get) => ({
   isPaused: false,
   selectedTicket: null,
   currentView: 'station',
+  expandedStation: null,
+  pinnedStations: [],
 
   markOrderDone: (orderId) => {
     const state = get();
@@ -51,17 +59,115 @@ export const useKmsStore = create<KmsState>((set, get) => ({
     set(s => {
       const newOrders = s.orders.map(o => {
         if (o.id !== orderId) return o;
-        const newItems = o.items.map((item, idx) => idx === itemIndex ? { ...item, done: true } : item);
+
+        const now = Date.now();
+        const newItems = o.items.map((item, idx) =>
+          idx === itemIndex
+            ? { ...item, done: true, completedAt: now }
+            : item
+        );
+
         const allDone = newItems.every(i => i.done);
+
+        const itemCompletedAction = {
+          timestamp: now,
+          action: 'item_completed' as const,
+          itemIndex,
+          station: o.station
+        };
+
+        const newHistory = [...(o.actionHistory || []), itemCompletedAction];
+
         if (allDone) {
-          const order = { ...o, items: newItems, status: 'done' as const };
+          const completeAction = {
+            timestamp: now,
+            action: 'completed' as const,
+            station: o.station
+          };
+          const order = {
+            ...o,
+            items: newItems,
+            status: 'done' as const,
+            actionHistory: [...newHistory, completeAction]
+          };
           get().deductIngredients(order);
           return order;
         }
-        return { ...o, items: newItems, status: 'in-progress' as const };
+
+        return {
+          ...o,
+          items: newItems,
+          status: 'in-progress' as const,
+          actionHistory: newHistory
+        };
       });
       return { orders: newOrders };
     });
+  },
+
+  startItem: (orderId, itemIndex) => {
+    set(s => ({
+      orders: s.orders.map(o => {
+        if (o.id !== orderId) return o;
+
+        const now = Date.now();
+        const newItems = o.items.map((item, idx) =>
+          idx === itemIndex && !item.startedAt
+            ? { ...item, startedAt: now }
+            : item
+        );
+
+        const action = {
+          timestamp: now,
+          action: 'item_started' as const,
+          itemIndex,
+          station: o.station
+        };
+
+        // Auto-transition to in-progress if not already
+        const newStatus = o.status === 'pending' ? 'in-progress' : o.status;
+        const statusAction = o.status === 'pending' ? {
+          timestamp: now,
+          action: 'started' as const,
+          station: o.station
+        } : null;
+
+        return {
+          ...o,
+          items: newItems,
+          status: newStatus as Order['status'],
+          actionHistory: [
+            ...(o.actionHistory || []),
+            ...(statusAction ? [statusAction] : []),
+            action
+          ]
+        };
+      })
+    }));
+  },
+
+  voidOrder: (orderId, reason) => {
+    set(s => ({
+      orders: s.orders.map(o => {
+        if (o.id !== orderId) return o;
+
+        const now = Date.now();
+        const action = {
+          timestamp: now,
+          action: 'voided' as const,
+          station: o.station,
+          reason
+        };
+
+        return {
+          ...o,
+          status: 'cancelled' as const,
+          voidedAt: now,
+          voidReason: reason,
+          actionHistory: [...(o.actionHistory || []), action]
+        };
+      })
+    }));
   },
 
   expediteOrder: (orderId) =>
@@ -162,16 +268,26 @@ export const useKmsStore = create<KmsState>((set, get) => ({
       ? menuItems.find(m => m.id === items[0].menuItemId)?.category || 'Expo'
       : 'Expo';
 
+    const station = stations.includes(stationForOrder) ? stationForOrder : 'Expo';
+    const createdAt = Date.now();
+
     const newOrder: Order = {
       id: `ORD-${String(orderNum).padStart(3, '0')}`,
       items,
-      station: stations.includes(stationForOrder) ? stationForOrder : 'Expo',
+      station,
       status: 'pending',
       priority: priorities[Math.floor(Math.random() * priorities.length)],
-      createdAt: Date.now(),
+      createdAt,
       slaMinutes: [10, 12, 15, 20][Math.floor(Math.random() * 4)],
       tableNumber: Math.random() > 0.3 ? Math.floor(Math.random() * 20) + 1 : undefined,
       type: types[Math.floor(Math.random() * types.length)],
+      actionHistory: [
+        {
+          timestamp: createdAt,
+          action: 'created',
+          station
+        }
+      ]
     };
 
     set(s => ({ orders: [...s.orders, newOrder] }));
@@ -180,11 +296,33 @@ export const useKmsStore = create<KmsState>((set, get) => ({
 
   recallOrder: (orderId) => {
     set(s => ({
-      orders: s.orders.map(o =>
-        o.id === orderId
-          ? { ...o, status: 'pending', items: o.items.map(i => ({ ...i, done: false })) }
-          : o
-      ),
+      orders: s.orders.map(o => {
+        if (o.id !== orderId) return o;
+
+        const now = Date.now();
+        const action = {
+          timestamp: now,
+          action: 'recalled' as const,
+          station: o.station
+        };
+
+        return {
+          ...o,
+          status: 'pending' as const,
+          items: o.items.map(i => ({ ...i, done: false })),
+          actionHistory: [...(o.actionHistory || []), action]
+        };
+      }),
+    }));
+  },
+
+  setExpandedStation: (station) => set({ expandedStation: station }),
+
+  togglePinnedStation: (station) => {
+    set(s => ({
+      pinnedStations: s.pinnedStations.includes(station)
+        ? s.pinnedStations.filter(st => st !== station)
+        : [...s.pinnedStations, station]
     }));
   },
 }));

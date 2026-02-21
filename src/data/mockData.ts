@@ -1,4 +1,4 @@
-import type { MenuItem, Order, Ingredient, StaffMember, SalesRecord } from '@/types';
+import type { MenuItem, Order, Ingredient, StaffMember, SalesRecord, OrderAction } from '@/types';
 
 export const menuItems: MenuItem[] = [
   { id: 'm1', name: 'Classic Burger', category: 'Grill', price: 14.99, prepTime: 12, ingredients: [{ ingredientId: 'i1', quantity: 1 }, { ingredientId: 'i2', quantity: 2 }, { ingredientId: 'i5', quantity: 0.15 }, { ingredientId: 'i6', quantity: 0.1 }] },
@@ -55,16 +55,49 @@ function generateOrders(): Order[] {
     const stationForOrder = items.length > 0
       ? menuItems.find(m => m.id === items[0].menuItemId)?.category || 'Expo'
       : 'Expo';
+
+    const createdAt = now - Math.floor(Math.random() * 3600000);
+    const status: Order['status'] = i <= 20 ? 'pending' : i <= 35 ? 'in-progress' : 'done';
+    const station = stations.includes(stationForOrder) ? stationForOrder : 'Expo';
+
+    // Generate action history
+    const actionHistory: OrderAction[] = [
+      {
+        timestamp: createdAt,
+        action: 'created',
+        station
+      }
+    ];
+
+    // If in-progress or done, add started action
+    if (status === 'in-progress' || status === 'done') {
+      actionHistory.push({
+        timestamp: createdAt + Math.floor(Math.random() * 300000), // 0-5 minutes after creation
+        action: 'started',
+        station
+      });
+    }
+
+    // If done, add completed action
+    if (status === 'done') {
+      actionHistory.push({
+        timestamp: createdAt + Math.floor(Math.random() * 600000) + 300000, // 5-15 minutes after creation
+        action: 'completed',
+        station
+      });
+    }
+
     orders.push({
       id: `ORD-${String(i).padStart(3, '0')}`,
       items,
-      station: stations.includes(stationForOrder) ? stationForOrder : 'Expo',
-      status: i <= 20 ? 'pending' : i <= 35 ? 'in-progress' : 'done',
+      station,
+      status,
       priority: priorities[Math.floor(Math.random() * priorities.length)],
-      createdAt: now - Math.floor(Math.random() * 3600000),
+      createdAt,
       slaMinutes: [10, 12, 15, 20][Math.floor(Math.random() * 4)],
       tableNumber: Math.random() > 0.3 ? Math.floor(Math.random() * 20) + 1 : undefined,
       type: types[Math.floor(Math.random() * types.length)],
+      actionHistory
     });
   }
   return orders;

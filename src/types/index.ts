@@ -12,6 +12,17 @@ export interface OrderItem {
   quantity: number;
   notes?: string;
   done?: boolean;
+  startedAt?: number;      // When item prep started
+  completedAt?: number;    // When item was marked done
+}
+
+export interface OrderAction {
+  timestamp: number;
+  action: 'created' | 'started' | 'item_started' | 'item_completed' | 'completed' | 'cancelled' | 'voided' | 'recalled';
+  itemIndex?: number;       // For item-specific actions
+  userId?: string;          // Future: track who performed action
+  station?: string;         // Track station when action occurred
+  reason?: string;          // For void/cancel actions
 }
 
 export interface Order {
@@ -24,6 +35,10 @@ export interface Order {
   slaMinutes: number;
   tableNumber?: number;
   type: 'dine-in' | 'takeout' | 'delivery';
+  actionHistory?: OrderAction[];  // Complete audit trail
+  voidedAt?: number;              // When order was voided
+  voidReason?: string;            // Why order was voided
+  voidedBy?: string;              // Who voided it (future)
 }
 
 export interface Ingredient {

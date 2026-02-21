@@ -3,15 +3,19 @@ import { useKmsStore } from '@/store/useKmsStore';
 import StationColumn from '@/components/kds/StationColumn';
 import PrepBoardView from '@/components/kds/PrepBoardView';
 import OrderHistoryModal from '@/components/kds/OrderHistoryModal';
+import VoidOrderDialog from '@/components/kds/VoidOrderDialog';
+import OrderJourneyModal from '@/components/kds/OrderJourneyModal';
 import { STATIONS } from '@/types';
 import { Pause, Play, ArrowLeft, Wifi, WifiOff, LayoutGrid, Columns, Plus, History, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Order } from '@/types';
 
 export default function KdsPage() {
-  const { orders, selectedTicket, isPaused, isOnline, currentView, markOrderDone, setSelectedTicket, rebalanceStation, setPaused, setOnline, simulateUpdates, setCurrentView, addSimulatedOrder, recallOrder } = useKmsStore();
+  const { orders, selectedTicket, isPaused, isOnline, currentView, expandedStation, pinnedStations, markOrderDone, setSelectedTicket, rebalanceStation, setPaused, setOnline, simulateUpdates, setCurrentView, addSimulatedOrder, recallOrder } = useKmsStore();
   const chimeRef = useRef<AudioContext | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [voidOrderId, setVoidOrderId] = useState<string | null>(null);
+  const [journeyOrderId, setJourneyOrderId] = useState<string | null>(null);
 
   const playChime = useCallback(() => {
     try {
@@ -223,31 +227,73 @@ export default function KdsPage() {
       </div>
       <div className="flex-1 overflow-hidden">
         {currentView === 'station' ? (
-          <div className="flex gap-2 overflow-x-auto p-2 h-full">
-            {STATIONS.map(station => (
-              <StationColumn
-                key={station}
-                station={station}
-                orders={orders.filter(o => o.station === station)}
-                selectedTicket={selectedTicket}
-                onSelectTicket={setSelectedTicket}
-                onMarkDone={(id) => { markOrderDone(id); playChime(); }}
-                onRebalance={() => rebalanceStation(station)}
-              />
-            ))}
-          </div>
+          <>
+            {/* Backdrop when station is expanded */}
+            {expandedStation && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-30" />
+            )}
+
+            <div className="flex gap-2 overflow-x-auto p-2 h-full">
+              {/* Render pinned stations first */}
+              {pinnedStations.map(station => (
+                <StationColumn
+                  key={station}
+                  station={station}
+                  orders={orders.filter(o => o.station === station)}
+                  selectedTicket={selectedTicket}
+                  onSelectTicket={setSelectedTicket}
+                  onMarkDone={(id) => { markOrderDone(id); playChime(); }}
+                  onRebalance={() => rebalanceStation(station)}
+                  onVoid={setVoidOrderId}
+                  onShowJourney={setJourneyOrderId}
+                />
+              ))}
+
+              {/* Render other stations (not pinned and not expanded, or is the expanded one) */}
+              {STATIONS.filter(st => !pinnedStations.includes(st))
+                .map(station => (
+                  <StationColumn
+                    key={station}
+                    station={station}
+                    orders={orders.filter(o => o.station === station)}
+                    selectedTicket={selectedTicket}
+                    onSelectTicket={setSelectedTicket}
+                    onMarkDone={(id) => { markOrderDone(id); playChime(); }}
+                    onRebalance={() => rebalanceStation(station)}
+                    onVoid={setVoidOrderId}
+                    onShowJourney={setJourneyOrderId}
+                  />
+                ))}
+            </div>
+          </>
         ) : (
-          <PrepBoardView 
+          <PrepBoardView
             orders={orders}
             selectedTicket={selectedTicket}
             onSelectTicket={setSelectedTicket}
             onMarkDone={(id) => { markOrderDone(id); playChime(); }}
+            onVoid={setVoidOrderId}
+            onShowJourney={setJourneyOrderId}
           />
         )}
       </div>
 
       {/* Order History Modal */}
       <OrderHistoryModal isOpen={showHistory} onClose={() => setShowHistory(false)} />
+
+      {/* Void Order Dialog */}
+      <VoidOrderDialog
+        orderId={voidOrderId}
+        isOpen={voidOrderId !== null}
+        onClose={() => setVoidOrderId(null)}
+      />
+
+      {/* Order Journey Modal */}
+      <OrderJourneyModal
+        orderId={journeyOrderId}
+        isOpen={journeyOrderId !== null}
+        onClose={() => setJourneyOrderId(null)}
+      />
     </div>
   );
 }

@@ -9,9 +9,11 @@ interface Props {
   selectedTicket: string | null;
   onSelectTicket: (id: string) => void;
   onMarkDone: (id: string) => void;
+  onVoid: (id: string) => void;
+  onShowJourney: (id: string) => void;
 }
 
-export default function PrepBoardView({ orders, selectedTicket, onSelectTicket, onMarkDone }: Props) {
+export default function PrepBoardView({ orders, selectedTicket, onSelectTicket, onMarkDone, onVoid, onShowJourney }: Props) {
   const ingredients = useKmsStore(s => s.ingredients);
   
   // Get all active orders (pending + in-progress)
@@ -155,6 +157,8 @@ export default function PrepBoardView({ orders, selectedTicket, onSelectTicket, 
                     isSelected={selectedTicket === order.id}
                     onSelect={() => onSelectTicket(order.id)}
                     onMarkDone={() => onMarkDone(order.id)}
+                    onVoid={() => onVoid(order.id)}
+                    onShowJourney={() => onShowJourney(order.id)}
                   />
                 ))}
               </div>
