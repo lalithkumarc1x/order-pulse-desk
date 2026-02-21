@@ -304,120 +304,124 @@ export default function StationColumn({ station, orders, selectedTicket, onSelec
                   No items
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {itemCounts
-                    .filter(item => !areAllItemsDone(item)) // Hide completed items
-                    .map((item) => {
-                      const itemNotes = getItemNotes(item);
-                      const allStarted = areAllItemsStarted(item);
-                      const allDone = areAllItemsDone(item);
-                      const startTime = getItemStartTime(item);
-
-                      return (
-                        <div
-                          key={item.menuItemId}
-                          className="bg-card border border-border rounded-lg p-4 hover:border-primary/50 transition-all min-h-[180px] flex flex-col"
-                        >
-                          {/* Timer at top if started */}
-                          {startTime && (
-                            <div className="flex items-center justify-center gap-1 mb-2 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded">
-                              <Clock size={14} className="text-orange-600 dark:text-orange-400" />
-                              <span className="font-mono-data font-semibold text-sm text-orange-700 dark:text-orange-300">
-                                {formatElapsedTime(startTime)}
-                              </span>
+                <div className="grid grid-cols-3 gap-4 h-full">
+                  {/* New Order Column */}
+                  <div className="flex flex-col">
+                    <div className="px-3 py-2 bg-blue-100 dark:bg-blue-900/30 border-b-2 border-blue-500 rounded-t-lg mb-3">
+                      <h4 className="font-bold text-sm text-blue-700 dark:text-blue-300">New Order</h4>
+                      <span className="text-xs text-blue-600 dark:text-blue-400">
+                        {itemCounts.filter(item => !areAllItemsStarted(item)).length} items
+                      </span>
+                    </div>
+                    <div className="flex-1 space-y-2 overflow-y-auto">
+                      {itemCounts
+                        .filter(item => !areAllItemsStarted(item))
+                        .map((item) => {
+                          const itemNotes = getItemNotes(item);
+                          return (
+                            <div
+                              key={item.menuItemId}
+                              onDoubleClick={() => startAllItemInstances(item)}
+                              className="bg-card border border-border rounded-lg p-3 hover:border-blue-500 hover:shadow-md transition-all cursor-pointer"
+                              title="Double-click to start"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="font-semibold text-sm text-foreground flex-1">{item.name}</h5>
+                                <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                                  <span className="font-bold font-mono-data text-xs">{item.quantity}</span>
+                                </div>
+                              </div>
+                              {itemNotes && (
+                                <div className="bg-muted border-l-2 border-muted-foreground rounded px-2 py-1 mt-2">
+                                  <div className="text-xs text-muted-foreground">{itemNotes}</div>
+                                </div>
+                              )}
                             </div>
-                          )}
+                          );
+                        })}
+                    </div>
+                  </div>
 
-                          {/* Item Header */}
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-semibold text-base text-foreground flex-1">
-                              {item.name}
-                            </h4>
-                            <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
-                              <span className="font-bold font-mono-data text-sm">{item.quantity}</span>
+                  {/* In Progress Column */}
+                  <div className="flex flex-col">
+                    <div className="px-3 py-2 bg-orange-100 dark:bg-orange-900/30 border-b-2 border-orange-500 rounded-t-lg mb-3">
+                      <h4 className="font-bold text-sm text-orange-700 dark:text-orange-300">In Progress</h4>
+                      <span className="text-xs text-orange-600 dark:text-orange-400">
+                        {itemCounts.filter(item => areAllItemsStarted(item) && !areAllItemsDone(item)).length} items
+                      </span>
+                    </div>
+                    <div className="flex-1 space-y-2 overflow-y-auto">
+                      {itemCounts
+                        .filter(item => areAllItemsStarted(item) && !areAllItemsDone(item))
+                        .map((item) => {
+                          const itemNotes = getItemNotes(item);
+                          const startTime = getItemStartTime(item);
+                          return (
+                            <div
+                              key={item.menuItemId}
+                              onDoubleClick={() => completeAllItemInstances(item)}
+                              className="bg-card border border-border rounded-lg p-3 hover:border-orange-500 hover:shadow-md transition-all cursor-pointer"
+                              title="Double-click to complete"
+                            >
+                              {startTime && (
+                                <div className="flex items-center justify-center gap-1 mb-2 px-2 py-1 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded">
+                                  <Clock size={12} className="text-orange-600 dark:text-orange-400" />
+                                  <span className="font-mono-data font-semibold text-xs text-orange-700 dark:text-orange-300">
+                                    {formatElapsedTime(startTime)}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="font-semibold text-sm text-foreground flex-1">{item.name}</h5>
+                                <div className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center">
+                                  <span className="font-bold font-mono-data text-xs">{item.quantity}</span>
+                                </div>
+                              </div>
+                              {itemNotes && (
+                                <div className="bg-muted border-l-2 border-muted-foreground rounded px-2 py-1 mt-2">
+                                  <div className="text-xs text-muted-foreground">{itemNotes}</div>
+                                </div>
+                              )}
                             </div>
-                          </div>
+                          );
+                        })}
+                    </div>
+                  </div>
 
-                        {/* Notes Display */}
-                        {itemNotes && (
-                          <div className="bg-muted border-l-2 border-muted-foreground rounded px-2 py-1.5 mb-3">
-                            <div className="text-xs text-muted-foreground">
-                              {itemNotes}
+                  {/* Done Column */}
+                  <div className="flex flex-col">
+                    <div className="px-3 py-2 bg-green-100 dark:bg-green-900/30 border-b-2 border-green-500 rounded-t-lg mb-3">
+                      <h4 className="font-bold text-sm text-green-700 dark:text-green-300">Done</h4>
+                      <span className="text-xs text-green-600 dark:text-green-400">
+                        {itemCounts.filter(item => areAllItemsDone(item)).length} items
+                      </span>
+                    </div>
+                    <div className="flex-1 space-y-2 overflow-y-auto">
+                      {itemCounts
+                        .filter(item => areAllItemsDone(item))
+                        .map((item) => {
+                          const itemNotes = getItemNotes(item);
+                          return (
+                            <div
+                              key={item.menuItemId}
+                              className="bg-card border border-green-200 dark:border-green-800 rounded-lg p-3 opacity-60"
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="font-semibold text-sm text-foreground flex-1 line-through">{item.name}</h5>
+                                <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center">
+                                  <span className="font-bold font-mono-data text-xs">{item.quantity}</span>
+                                </div>
+                              </div>
+                              {itemNotes && (
+                                <div className="bg-muted border-l-2 border-muted-foreground rounded px-2 py-1 mt-2">
+                                  <div className="text-xs text-muted-foreground">{itemNotes}</div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        )}
-
-                        {/* Action Buttons */}
-                        <div className="flex flex-col gap-2 mt-auto">
-                          <div className="flex gap-2">
-                            {!allStarted ? (
-                              <button
-                                onClick={() => startAllItemInstances(item)}
-                                className="flex-1 flex items-center justify-center gap-1 text-sm px-3 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-                              >
-                                <Play size={14} className="fill-current" />
-                                Start
-                              </button>
-                            ) : !allDone ? (
-                              <button
-                                onClick={() => stopAllItemInstances(item)}
-                                className="flex-1 flex items-center justify-center gap-1 text-sm px-3 py-2 rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
-                                title="Stop and complete all remaining items"
-                              >
-                                <Square size={14} />
-                                Stop
-                              </button>
-                            ) : null}
-
-                            {!allDone && (
-                              <button
-                                onClick={() => completeAllItemInstances(item)}
-                                className="flex-1 flex items-center justify-center gap-1 text-sm px-3 py-2 rounded bg-green-500 text-white hover:bg-green-600 transition-colors"
-                              >
-                                <CheckCircle2 size={14} />
-                                Done
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Partial Completion */}
-                          {!allDone && (
-                            <div className="flex items-center gap-2 p-1.5 bg-muted/50 rounded">
-                              <input
-                                type="number"
-                                min="1"
-                                max={item.quantity}
-                                value={partialCounts.get(item.menuItemId) || ''}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value) || 0;
-                                  setPartialCounts(prev => {
-                                    const next = new Map(prev);
-                                    if (val > 0) {
-                                      next.set(item.menuItemId, val);
-                                    } else {
-                                      next.delete(item.menuItemId);
-                                    }
-                                    return next;
-                                  });
-                                }}
-                                placeholder="Qty"
-                                className="w-14 px-2 py-1 text-sm border border-border rounded bg-background text-foreground focus:border-primary focus:ring-1 focus:ring-primary/20"
-                              />
-                              <span className="text-xs text-muted-foreground">of {item.quantity}</span>
-                              <button
-                                onClick={() => handlePartialComplete(item)}
-                                disabled={!partialCounts.get(item.menuItemId)}
-                                className="flex-1 flex items-center justify-center gap-1 text-xs px-2 py-1 rounded bg-indigo-500 text-white hover:bg-indigo-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-                              >
-                                <CheckCircle2 size={12} />
-                                Partial
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                          );
+                        })}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
